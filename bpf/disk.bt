@@ -1,0 +1,45 @@
+#!/usr/bin/bpftrace
+/*
+ * disk.bt - Block I/O Latency Monitor
+ * Uses submit_bio/bio_endio kprobes (BTF-free, works on this kernel)
+ * Usage: sudo bpftrace disk.bt
+ */
+
+BEGIN {
+    printf("=== Disk I/O Latency Monitor ===\n");
+    printf("%-12s %-8s %-12s\n", "TIME", "IOPS", "AVG_LAT(us)");
+}
+
+kprobe:submit_bio {
+    @start[arg0] = nsecs;
+    @issued = count();
+}
+
+kprobe:bio_endio {
+    $bio = (uint64)arg0;
+    if (@start[$bio]) {
+        $lat = (nsecs - @start[$bio]) / 1000;
+        @lat_us = hist($lat);
+        @total_lat = sum($lat);
+        @completed = count();
+        delete(@start[$bio]);
+    }
+}
+
+interval:s:1 {
+    $comp = @completed;
+    $total = @total_lat;
+    $avg = $comp > 0 ? $total / $comp : 0;
+
+    printf("%-12s %-8lld %-12lld\n", elapsed, (uint64)$comp, (uint64)$avg);
+
+    zero(@issued);
+    zero(@completed);
+    zero(@total_lat);
+}
+
+END {
+    printf("\n--- Disk I/O Latency Distribution (us) ---\n");
+    print(@lat_us);
+    clear(@start);
+}

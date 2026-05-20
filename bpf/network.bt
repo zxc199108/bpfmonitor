@@ -1,0 +1,34 @@
+#!/usr/bin/bpftrace
+/*
+ * network.bt - Network Packet Monitor
+ * Tracks: TX/RX packet rates and byte rates
+ * Usage: sudo bpftrace network.bt
+ */
+
+BEGIN {
+    printf("=== Network Packet Monitor ===\n");
+    printf("%-12s %-12s %-12s %-12s %-12s\n",
+           "TIME", "TX_pkts/s", "RX_pkts/s", "TX_kB/s", "RX_kB/s");
+}
+
+tracepoint:net:net_dev_queue {
+    @tx_pkts = count();
+    @tx_bytes = sum(args->len);
+}
+
+tracepoint:net:netif_receive_skb {
+    @rx_pkts = count();
+    @rx_bytes = sum(args->len);
+}
+
+interval:s:1 {
+    $txp = @tx_pkts;
+    $rxp = @rx_pkts;
+    $txb = @tx_bytes / 1024;
+    $rxb = @rx_bytes / 1024;
+    printf("%-12s %-12d %-12d %-12d %-12d\n", elapsed, $txp, $rxp, $txb, $rxb);
+    zero(@tx_pkts);
+    zero(@tx_bytes);
+    zero(@rx_pkts);
+    zero(@rx_bytes);
+}

@@ -1,0 +1,35 @@
+#!/usr/bin/bpftrace
+/*
+ * cpu.bt - CPU & Scheduler Performance Monitor
+ * Uses tracepoints to avoid kprobe:finish_task_switch inlining on ARM64
+ * Usage: sudo bpftrace cpu.bt
+ */
+
+BEGIN {
+    printf("=== CPU & Scheduler Monitor ===\n");
+    printf("%-12s %-8s\n", "TIME", "CTX_SW/s");
+}
+
+tracepoint:sched:sched_wakeup {
+    @wakeup[args->pid] = nsecs;
+}
+
+tracepoint:sched:sched_switch {
+    @cs = count();
+    if (@wakeup[args->next_pid]) {
+        $lat = (nsecs - @wakeup[args->next_pid]) / 1000;
+        @lat_us = hist($lat);
+        delete(@wakeup[args->next_pid]);
+    }
+}
+
+interval:s:1 {
+    printf("%-12s %-8d\n", elapsed, (uint64)@cs);
+    zero(@cs);
+}
+
+END {
+    printf("\n--- Scheduler Latency Distribution (us) ---\n");
+    print(@lat_us);
+    clear(@wakeup);
+}

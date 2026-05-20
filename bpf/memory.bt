@@ -1,0 +1,27 @@
+#!/usr/bin/bpftrace
+/*
+ * memory.bt - Memory Page Allocation Monitor
+ * Tracks: page allocation/free rate
+ * Usage: sudo bpftrace memory.bt
+ */
+
+BEGIN {
+    printf("=== Memory Page Alloc/Free Monitor ===\n");
+    printf("%-12s %-12s %-12s\n", "TIME", "ALLOC/s", "FREE/s");
+}
+
+tracepoint:kmem:mm_page_alloc {
+    @page_allocs = count();
+}
+
+tracepoint:kmem:mm_page_free {
+    @page_frees = count();
+}
+
+interval:s:1 {
+    $allocs = @page_allocs;
+    $frees = @page_frees;
+    printf("%-12s %-12d %-12d\n", elapsed, $allocs, $frees);
+    zero(@page_allocs);
+    zero(@page_frees);
+}

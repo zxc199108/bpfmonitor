@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# BPF build artifacts
+bpf/*.o
+bpf/loader
+loader
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Server
+*.log
